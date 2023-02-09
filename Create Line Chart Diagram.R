@@ -1,11 +1,20 @@
 library(tidyverse)
 library(gt)
+library(gtExtras)
+
+setwd("~/Desktop/Projects/Pitch Sequence Project/MLB Pitch Sequence Flowchart")
 
 ####Create Data####
 
+# Read in data
+
 data <- read_csv("2022 PBP with Counts.csv") %>% 
-  mutate(across(paste0("count_",1:16), str_replace_all, "9-9", "BIP")) %>% 
-  mutate(across(paste0("count_",1:16), str_replace_all, "10-10", "HBP"))
+  mutate(across(paste0("count_",1:16), str_replace_all, "9-9", "BIP")) %>%  # Replace 9-9 with BIP
+  mutate(across(paste0("count_",1:16), str_replace_all, "10-10", "HBP")) # Replace 10-10 with HBP
+
+average_props <- read_csv("League Average Proportions.csv")
+
+# Coerce data from a list to a dataframe for later on
 
 x <- as.list(data)
 y <- do.call(cbind, x)
@@ -23,15 +32,21 @@ find_proportions <- function(data){
       freq <- table(data["count_1"]) %>% 
         as.data.frame()
     } else{
+      # Finds locations of the count in the dataframe
+      
       indices <- which(data == count, arr.ind = T)
+      
+      # Adds one to the column to reflect looking at the next pitch after the given count
       
       indices[,2] <- indices[,2] + 1
       
-      test <- data[indices]
+      # Creates frequency table of next pitches
       
       freq <- table(data[indices]) %>% 
         as.data.frame()
     }
+    
+    # Finds proportions and rounds
     
     freq <- freq %>% 
       mutate(Prop = round(Freq / (sum(Freq)),3))
@@ -49,12 +64,25 @@ find_proportions <- function(data){
   return(props %>% filter(!(end %in% c("HBP","BIP"))))
 }
 
-average_props <- find_proportions(data)
+#average_props <- find_proportions(data)
 
+#write_csv(average_props,"League Average Proportions.csv")
 
 plot_sequences <- function(props, title){
+  
+  # Convert props dataframe to differences from league average
+  
+  props <- merge(average_props %>% rename("avg_prop" = prop, "total_n" = n), props, by = c("start","end"), all = T) %>% 
+    mutate(prop = ifelse(is.na(prop),0,prop),
+           n = ifelse(is.na(n),0,n),
+           diff = prop - avg_prop)
+  
+  # Creates labels of points in diagram
+  
   labels <- c("0-0","1-0","0-1","2-0","1-1","0-2","3-0","2-1","1-2","0-3",
               "4-0","3-1","2-2","1-3","4-1","3-2","2-3","4-2","3-3")
+  
+  # Initializes coordinates of data points
   
   coords <- data.frame(label = labels,
                        x = c(1/8, 1/4, 1/4, 3/8, 3/8, 3/8, 1/2, 1/2, 1/2, 1/2, 
@@ -62,14 +90,20 @@ plot_sequences <- function(props, title){
                        y = c(1/2, 3/5, 2/5, 7/10, 1/2, 3/10, 4/5, 3/5, 2/5, 1/5, 9/10,
                              7/10, 1/2, 3/10, 4/5, 3/5, 2/5, 7/10, 1/2))
   
+  # If the result is a K, node will be red, blue for BB
+  
   coords$result = case_when(substr(coords$label,3,3) == "3" ~ "K",
                             substr(coords$label,1,1) == "4" ~ "BB")
+  
+  # Start and end points for arrows
   
   plot_guide <- data.frame(start = c(1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,12,12,13,13,16,16),
                            end =   c(2,3,4,5,5,6,7,8,8,9,9,10,11,12,12,13,13,14,15,16,16,17,18,19))
   
   plot_guide$start_count <- coords$label[plot_guide$start]
   plot_guide$end_count <- coords$label[plot_guide$end]
+  
+  # Initializes plot with nodes
   
   plot <- ggplot(coords, aes(x = x, y = y, label = labels)) +
     geom_point(size = 5, aes(color = result)) + 
@@ -84,7 +118,8 @@ plot_sequences <- function(props, title){
                    xend = coords$x[plot_guide$end[i]],
                    y = coords$y[plot_guide$start[i]],
                    yend = coords$y[plot_guide$end[i]],
-                   linewidth = props$prop[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$end_count[i])] * 5)
+                   linewidth = abs(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$end_count[i])] * 20),
+                   color = ifelse(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$end_count[i])] > 0, "darkgreen", "red"))
     
     if(substr(plot_guide$start_count[i],3,3) == "2"){
       plot <- plot +
@@ -92,14 +127,16 @@ plot_sequences <- function(props, title){
                    xend = coords$x[plot_guide$start[i]],
                    y = coords$y[plot_guide$start[i]],
                    yend = coords$y[plot_guide$start[i]] - .1,
-                   linewidth = props$prop[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$start_count[i])] * 5,
-                   curvature = 1) +
+                   linewidth = abs(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$start_count[i])] * 20),
+                   curvature = 1,
+                   color = ifelse(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$end_count[i])] > 0, "darkgreen", "red")) +
         geom_curve(x = coords$x[plot_guide$start[i]],
                    xend = coords$x[plot_guide$start[i]],
                    y = coords$y[plot_guide$start[i]] - .1,
                    yend = coords$y[plot_guide$start[i]],
-                   linewidth = props$prop[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$start_count[i])] * 5,
-                   curvature = 1)
+                   linewidth = abs(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$start_count[i])] * 20),
+                   curvature = 1,
+                   color = ifelse(props$diff[which(props$start == plot_guide$start_count[i] & props$end == plot_guide$end_count[i])] > 0, "darkgreen", "red"))
       
     }
   }
@@ -109,78 +146,17 @@ plot_sequences <- function(props, title){
     theme_void() +
     xlim(0, 1) +
     ylim(0, 1) +
-    labs(title = title) +
-    theme(plot.title = element_text(hjust = 0.5))
+    geom_label(x = .75, y = .2, label = paste0("n = ",sum(props$n, na.rm = T)))
   
-  table <- props %>%
-    mutate(diff = prop - average_props$prop[which(average_props$start == start & average_props$end == end)]) %>% 
-    gt() %>% 
-    tab_style(style = cell_fill(color = "#FF7276"),
-              locations = cells_body(columns = prop,
-                                     rows = diff > 0)) %>% 
-    tab_style(style = cell_fill(color = "#26F7FD"),
-              locations = cells_body(columns = prop,
-                                     rows = diff < 0)) %>% 
-    fmt_percent(3:4, decimals = 1) %>% 
-    cols_hide(diff) %>% 
-    tab_header(title = title)
+  table <- props %>% 
+    mutate(sign = ifelse(diff > 0,"+","-"),
+           diff = paste0(sign,round(abs(diff * 100),2),"%")) %>% 
+    select(start,end,diff) %>% 
+    pivot_wider(names_from = start,
+                values_from = diff) %>% 
+    gt(rowname_col = "end") %>% 
+    sub_missing(columns = everything(),
+                missing_text = "")
 
   return(list(plot,table))
 }
-
-
-####Examples####
-
-average_chart <- plot_sequences(average_props,"League Average")[1][[1]]
-ggsave("League Average Pitch Sequence Chart.png",average_chart)
-
-average_table <- plot_sequences(average_props,"League Average")[2][[1]]
-gtsave(average_table,"League Average Pitch Sequence Table.png")
-
-trout <- data %>% 
-  filter(BAT_ID == "troum001")
-
-trout_props <- find_proportions(trout)
-
-trout_props <- trout_props %>% filter(!(end %in% c("HBP","BIP")))
-
-trout_chart <- plot_sequences(trout_props,"Mike Trout")[1][[1]]
-ggsave("Mike Trout Pitch Sequence Chart.png",trout_chart)
-
-trout_table <- plot_sequences(trout_props,"Mike Trout")[2][[1]]
-gtsave(trout_table,"Mike Trout Pitch Sequence Table.png")
-
-late_game <- data %>% 
-  filter(INN_CT == 9 & 
-           abs(as.numeric(HOME_SCORE_CT) - as.numeric(AWAY_SCORE_CT)) <= 1)
-
-late_game_props <- find_proportions(late_game)
-
-late_game_props <- late_game_props %>% filter(!(end %in% c("HBP","BIP")))
-
-late_game_chart <- plot_sequences(late_game_props,"Late Game")[1][[1]]
-ggsave("Late Game Pitch Sequence Chart.png",late_game_chart)
-
-late_game_table <- plot_sequences(late_game_props,"Late Game")[2][[1]]
-gtsave(late_game_table,"Late Game Pitch Sequence Table.png")
-
-
-####Platoon Effect####
-
-RR <- find_proportions(data %>% filter(PIT_HAND_CD == "R" & BAT_HAND_CD == "R")) %>% rename("RR_prop" = prop, "RR_n" = n)
-RL <- find_proportions(data %>% filter(PIT_HAND_CD == "R" & BAT_HAND_CD == "L")) %>% rename("RL_prop" = prop, "RL_n" = n)
-LR <- find_proportions(data %>% filter(PIT_HAND_CD == "L" & BAT_HAND_CD == "R")) %>% rename("LR_prop" = prop, "LR_n" = n)
-LL <- find_proportions(data %>% filter(PIT_HAND_CD == "L" & BAT_HAND_CD == "L")) %>% rename("LL_prop" = prop, "LL_n" = n)
-
-platoon <- reduce(list(RR,RL,LR,LL),full_join, by = c("start","end")) %>% 
-  mutate(avg = (RR_prop * RR_n + RL_prop * RL_n + LR_prop * LR_n + LL_prop * LL_n) / (RR_n + RL_n + LR_n + LL_n))
-
-prop.test(platoon %>% filter(start == "0-0" & end == "0-1") %>% select(ends_with("prop")) * platoon %>% filter(start == "0-0" & end == "0-1") %>% select(ends_with("n")),
-          platoon %>% filter(start == "0-0" & end == "0-1") %>% select(ends_with("n")))
-
-# 0-0 to 0-1 is significant with p = 3.074e-09
-
-prop.test(platoon %>% filter(start == "3-0" & end == "4-0") %>% select(ends_with("prop")) * platoon %>% filter(start == "3-0" & end == "4-0") %>% select(ends_with("n")),
-          platoon %>% filter(start == "3-0" & end == "4-0") %>% select(ends_with("n")))
-
-# 3-0 to 4-0 is significant with p = 0.02049
