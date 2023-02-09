@@ -1,2 +1,3 @@
-# MLB-Pitch-Sequence-Flowchart
+# MLB Pitch Sequence Analysis
+
  
