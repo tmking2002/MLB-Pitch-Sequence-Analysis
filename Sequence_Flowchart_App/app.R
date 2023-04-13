@@ -13,7 +13,7 @@ library(shiny)
 setwd("~/Projects/MLB-Pitch-Sequence-Flowchart")
 
 
-source("Create Line Chart Diagram.R")
+source("create_line_chart.R")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -33,11 +33,11 @@ ui <- fluidPage(
             ),
             
             selectizeInput(
-              inputId = "inning_1",
-              label = "Inning",
-              choices = c("All",sort(unique(as.numeric(data$INN_CT)))),
+              inputId = "outs_1",
+              label = "Outs",
+              choices = c("All",0:2),
               selected = "All",
-              multiple = TRUE
+              multiple = FALSE
             ),
             
             selectizeInput(
@@ -84,11 +84,11 @@ ui <- fluidPage(
                ),
                
                selectizeInput(
-                 inputId = "inning_2",
-                 label = "Inning",
-                 choices = c("All",sort(unique(as.numeric(data$INN_CT)))),
+                 inputId = "outs_2",
+                 label = "Outs",
+                 choices = c("All",0:2),
                  selected = "All",
-                 multiple = TRUE
+                 multiple = FALSE
                ),
                
                selectizeInput(
@@ -130,9 +130,9 @@ server <- function(input, output) {
         filter(BAT_ID == input$playerID_1)
     }
     
-    if(!("All" %in% input$inning_1)){
+    if(!("All" %in% input$outs_1)){
       df <- df %>% 
-        filter(INN_CT %in% input$inning_1)
+        filter(OUTS_CT %in% input$outs_1)
     }
     
     if(!("Any" %in% input$runners_1)){
@@ -165,9 +165,9 @@ server <- function(input, output) {
         filter(BAT_ID == input$playerID_1)
     }
     
-    if(!("All" %in% input$inning_1)){
+    if(!("All" %in% input$outs_1)){
       df <- df %>% 
-        filter(INN_CT %in% input$inning_1)
+        filter(OUTS_CT == input$outs_1)
     }
     
     if(!("Any" %in% input$runners_1)){
@@ -202,7 +202,7 @@ server <- function(input, output) {
     
     if(!("All" %in% input$inning_2)){
       df <- df %>% 
-        filter(INN_CT %in% input$inning_2)
+        filter(OUTS_CT == input$outs_2)
     }
     
     if(!("Any" %in% input$runners_2)){
@@ -235,9 +235,9 @@ server <- function(input, output) {
         filter(BAT_ID == input$playerID_2)
     }
     
-    if(!("All" %in% input$inning_2)){
+    if(!("All" %in% input$outs_2)){
       df <- df %>% 
-        filter(INN_CT %in% input$inning_2)
+        filter(OUTS_CT %in% input$outs_2)
     }
     
     if(!("Any" %in% input$runners_2)){

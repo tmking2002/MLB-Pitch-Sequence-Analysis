@@ -1,6 +1,6 @@
 library(tidyverse)
 
-pbp <- read_csv("2022 PBP with Counts.csv") %>% 
+pbp <- read_csv("pbp_with_counts_2022.csv") %>% 
   mutate(runner_on_first = as.numeric(!is.na(BASE1_RUN_ID)),
          runner_on_second = as.numeric(!is.na(BASE2_RUN_ID)),
          runner_on_third = as.numeric(!is.na(BASE3_RUN_ID)),
@@ -24,25 +24,19 @@ half_innings <- pbp %>%
 
 pbp_upd <- inner_join(pbp, half_innings, by = "half_inning")
 
-runs <- pbp_upd %>% 
+filtered <- pbp_upd %>% 
   filter((state != new_state | runs_scored > 0) & outs_inning == 3) %>% 
   mutate(runs_roi = max_runs - runs) %>% 
-  group_by(state, outs) %>% 
-  summarise(avg = mean(runs_roi))
+  select(runs_roi, state, outs, PITCH_SEQ_TX, EVENT_TX, paste0("count_",1:16))
+  
 
-counts <- c("0-1","0-2","1-0","1-1","1-2","2-0","2-1","2-2","3-0","3-1","3-2")
+longer <- filtered %>% 
+  pivot_longer(cols = starts_with("count_")) %>% 
+  filter(!(value %in% c("9-9", "10-10"))) %>% 
+  drop_na(value)
 
-for (count in counts) {
-  pbp_upd[[count]] <- apply(pbp_upd, 1, function(x) {
-    count %in% x[paste0("count_", 1:16)]
-  })
-}
+runs <- longer %>% 
+  group_by(state, outs, value) %>% 
+  summarise(avg = mean(runs_roi),
+            count = n())
 
-stats <- pbp %>% 
-  left_join(runs, by = "state") %>% 
-  select(state, outs.x, avg) %>% 
-  gather(key = "count", value = "passed_thru", -c(state, outs.x, avg)) %>% 
-  filter(passed_thru = TRUE) %>% 
-  group_by(state, outs.x) %>% 
-  summarise(n = n(),
-            avg_runs = mean(avg))

@@ -6,14 +6,14 @@ library(gtExtras)
 
 # Read in data
 
-data <- read_csv("2022 PBP with Counts.csv") %>% 
+data <- read_csv("pbp_with_counts_2022.csv") %>% 
   mutate(across(paste0("count_",1:16), str_replace_all, "9-9", "BIP")) %>%  # Replace 9-9 with BIP
   mutate(across(paste0("count_",1:16), str_replace_all, "10-10", "HBP")) %>%  # Replace 10-10 with HBP
   mutate(runner_on_first = !is.na(BASE1_RUN_ID),
          runner_on_second = !is.na(BASE2_RUN_ID),
          runner_on_third = !is.na(BASE3_RUN_ID))
 
-average_props <- read_csv("League Average Proportions.csv")
+average_props <- read_csv("leage_average_proportions.csv")
 
 # Coerce data from a list to a dataframe for later on
 
@@ -154,14 +154,14 @@ plot_sequences <- function(props, title){
   
   table <- props %>% 
     select(start,end,diff) %>% 
-    pivot_wider(names_from = start,
+    pivot_wider(names_from = end,
                 values_from = diff) %>% 
-    gt(rowname_col = "end") %>% 
+    gt(rowname_col = "start") %>% 
     sub_missing(columns = everything(),
                 missing_text = "") %>% 
     tab_header(title = "Start Count") %>% 
-    gt_color_rows(2:13, palette = c("red","white","darkgreen"), domain = c(-max_diff, max_diff)) %>% 
-    fmt_percent(2:13, decimals = 1) %>% 
+    gt_color_rows(2:19, palette = c("red","white","darkgreen"), domain = c(-max_diff, max_diff)) %>% 
+    fmt_percent(2:19, decimals = 1) %>% 
     cols_width(everything() ~ px(32)) %>% 
     tab_options(table.font.size = px(9),
                 data_row.padding = px(1))
